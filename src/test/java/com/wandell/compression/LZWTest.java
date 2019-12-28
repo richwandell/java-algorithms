@@ -1,0 +1,57 @@
+package com.wandell.compression;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+public class LZWTest {
+    private static final String TEXT1 = "aababbabbaaba";
+
+    @Test
+    void testCompression() {
+        byte[] compressed = LZW.compress(TEXT1);
+
+        System.out.println(compressed.toString());
+    }
+}
+
+//package com.wandell.PHP;
+//
+//        import com.wandell.PHP.pojo.Pojo1;
+//        import com.wandell.PHP.pojo.Pojo2;
+//        import org.junit.jupiter.api.Test;
+//        import static org.junit.jupiter.api.Assertions.*;
+//
+//public class SerializerTest {
+//
+//    @Test
+//    void testSimpleSerialize() {
+//        Pojo1 pojo1 = new Pojo1();
+//
+//        try {
+//            Serializer serializer = new Serializer();
+//            String serialized = serializer.serialize(pojo1);
+//
+//            System.out.println(serialized);
+//        } catch (Exception.MissingPHPClassAnnotation missingPHPClassAnnotation) {
+//            fail();
+//        }
+//    }
+//
+//    @Test
+//    void testSerializeObjectWithReferences() {
+//        Pojo1 pojo1 = new Pojo1();
+//        Pojo2 pojo2 = new Pojo2(pojo1, pojo1);
+//
+//
+//        try {
+//            Serializer serializer = new Serializer();
+//            String serialized = serializer.serialize(pojo2);
+//
+//            System.out.println(serialized);
+//        } catch (Exception.MissingPHPClassAnnotation missingPHPClassAnnotation) {
+//            fail();
+//        }
+//    }
+//}
+
