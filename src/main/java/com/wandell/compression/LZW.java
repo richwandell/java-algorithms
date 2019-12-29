@@ -1,5 +1,6 @@
 package com.wandell.compression;
 
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 
@@ -12,13 +13,11 @@ public class LZW {
 
     private LZW(String data) {
         cd = new LinkedHashMap<>();
-        cd.put("\0", 0);
         cData = data;
     }
 
     private LZW(byte[] data) {
         dd = new ArrayList<>();
-        dd.add("\0");
         dData = data;
     }
 
@@ -31,16 +30,25 @@ public class LZW {
         String totalDecompressed = "";
         int number = 0;
         String sequence = "";
+        String rich;
         for(int i = 0; i < dData.length; i++) {
             if ((int) dData[i] == 0) {
-                number = (int) dData[i+1] + (int) dData[i+2];
+                number = ((int) dData[i+1] & 0xFF) + ((int) dData[i+2] & 0xFF);
                 i += 2;
             } else {
                 number = (int) dData[i];
             }
 
+            if (i == 80) {
+                rich = "hi";
+            }
+
             if (number < 0) {
-                number = number + 256;
+                sequence += String.valueOf((char)-number);
+                dd.add(sequence);
+                totalDecompressed += sequence;
+                sequence = "";
+                continue;
             }
 
             try {
@@ -59,7 +67,6 @@ public class LZW {
     private byte[] compressString() {
         ArrayList<Integer> totalCompressed = new ArrayList<>();
 
-
         for(int i = 0; i < cData.length(); i++) {
             String ch = String.valueOf(cData.charAt(i));
 
@@ -76,7 +83,11 @@ public class LZW {
                     }
                     ch = String.valueOf(cData.charAt(i));
                     compressedKey += ch;
-                    compressed.add((int)ch.charAt(0));
+                    int po = (int)ch.charAt(0);
+                    if (cd.size() > po) {
+                        po = -po;
+                    }
+                    compressed.add(po);
                     if (cd.containsKey(compressedKey)) {
                         compressed = new ArrayList<>();
                         value = cd.get(compressedKey);
@@ -89,7 +100,11 @@ public class LZW {
                 }
             } else {
                 cd.put(ch, cd.size());
-                totalCompressed.add((int)ch.charAt(0));
+                int po = (int)ch.charAt(0);
+                if (cd.size() > po) {
+                    po = -po;
+                }
+                totalCompressed.add(po);
             }
         }
 

@@ -4,22 +4,22 @@ import org.junit.jupiter.api.Test;
 
 import java.io.*;
 import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class LZWTest {
-    private static final String TEXT1 = "aababbabbaaba";
-
-    private static final String TEXT2 = "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.";
-
     @Test
     void testCompression() {
         try {
-            PrintWriter out = new PrintWriter("source.txt");
-            out.write(TEXT2);
-            out.close();
+            StringBuilder contentBuilder = new StringBuilder();
 
-            byte[] compressed = LZW.compress(TEXT2);
+            try (Stream<String> stream = Files.lines(Paths.get("source.txt"))) {
+                stream.forEach(s -> contentBuilder.append(s).append("\n"));
+            }
+
+            byte[] compressed = LZW.compress(contentBuilder.toString());
             File file = new File("dest.txt");
             FileOutputStream fos = new FileOutputStream(file);
             fos.write(compressed);
@@ -35,6 +35,7 @@ public class LZWTest {
             File file = new File("dest.txt");
             byte[] fileContent = Files.readAllBytes(file.toPath());
             String decompress = LZW.decompress(fileContent);
+            System.out.println(decompress);
         } catch (IOException e) {
             e.printStackTrace();
         }
