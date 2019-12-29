@@ -1,62 +1,94 @@
 package com.wandell.compression;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.IntBuffer;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 
 public class LZW {
 
-    private String data;
-
-    private LinkedHashMap<String, Integer> dictionary;
-
+    private LinkedHashMap<String, Integer> cd;
+    private String cData;
+    private ArrayList<String> dd;
+    private byte[] dData;
 
     private LZW(String data) {
-        this.data = data;
-        dictionary = new LinkedHashMap<>();
-//        for(int i = 0; i < 255; i++) {
-//            dictionary.put(String.valueOf((char)i), dictionary.size());
-//        }
+        cd = new LinkedHashMap<>();
+        cd.put("\0", 0);
+        cData = data;
     }
 
-    public byte[] compressString(String data) {
+    private LZW(byte[] data) {
+        dd = new ArrayList<>();
+        dd.add("\0");
+        dData = data;
+    }
+
+    public static String decompress(byte[] data) {
+        LZW decompressor = new LZW(data);
+        return decompressor.decompressBytes();
+    }
+
+    private String decompressBytes() {
+        String totalDecompressed = "";
+        int number = 0;
+        String sequence = "";
+        for(int i = 0; i < dData.length; i++) {
+            if ((int) dData[i] == 0) {
+                number = (int) dData[i+1] + (int) dData[i+2];
+                i += 2;
+            } else {
+                number = (int) dData[i];
+            }
+
+            if (number < 0) {
+                number = number + 256;
+            }
+
+            try {
+                sequence += dd.get(number);
+                continue;
+            } catch (IndexOutOfBoundsException e) {
+                sequence += String.valueOf((char)number);
+            }
+            dd.add(sequence);
+            totalDecompressed += sequence;
+            sequence = "";
+        }
+        return totalDecompressed;
+    }
+
+    private byte[] compressString() {
         ArrayList<Integer> totalCompressed = new ArrayList<>();
 
 
-        for(int i = 0; i < data.length(); i++) {
-            String ch = String.valueOf(data.charAt(i));
+        for(int i = 0; i < cData.length(); i++) {
+            String ch = String.valueOf(cData.charAt(i));
 
-            if (dictionary.containsKey(ch)) {
+            if (cd.containsKey(ch)) {
                 ArrayList<Integer> compressed = new ArrayList<>();
-                Integer value = dictionary.get(ch);
+                Integer value = cd.get(ch);
                 compressed.add(value);
                 String compressedKey = ch;
                 while(true) {
                     i++;
-                    if (i == data.length()) {
+                    if (i == cData.length()) {
                         totalCompressed.addAll(compressed);
                         break;
                     }
-                    ch = String.valueOf(data.charAt(i));
+                    ch = String.valueOf(cData.charAt(i));
                     compressedKey += ch;
                     compressed.add((int)ch.charAt(0));
-                    if (dictionary.containsKey(compressedKey)) {
+                    if (cd.containsKey(compressedKey)) {
                         compressed = new ArrayList<>();
-                        value = dictionary.get(compressedKey);
+                        value = cd.get(compressedKey);
                         compressed.add(value);
                     } else {
-                        dictionary.put(compressedKey, dictionary.size() + 255);
+                        cd.put(compressedKey, cd.size());
                         totalCompressed.addAll(compressed);
                         break;
                     }
                 }
             } else {
-                dictionary.put(ch, dictionary.size() + 255);
+                cd.put(ch, cd.size());
                 totalCompressed.add((int)ch.charAt(0));
             }
         }
@@ -90,6 +122,6 @@ public class LZW {
 
     public static byte[] compress(String data){
         LZW compressor = new LZW(data);
-        return compressor.compressString(data);
+        return compressor.compressString();
     }
 }
