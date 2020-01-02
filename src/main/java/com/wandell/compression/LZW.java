@@ -7,13 +7,14 @@ import java.io.IOException;
 import java.lang.reflect.Array;
 import java.nio.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 
 public class LZW {
 
-    private LinkedHashMap<String, Integer> cd;
+    private HashMap<String, Integer> cd;
     private String cData;
-    private ArrayList<String> dd;
+    private String[] dd;
     private byte[] dData;
 
     private LZW(String data) {
@@ -26,9 +27,13 @@ public class LZW {
     }
 
     private LZW(byte[] data) {
-        dd = new ArrayList<>();
+        dd = new String[256];
         for(int i = 0; i < 256; i++) {
-            dd.add(String.valueOf((char)i));
+            dd[i] = String.valueOf((char)i);
+        }
+        cd = new LinkedHashMap<>();
+        for(int i = 0; i < 256; i++) {
+            cd.put(String.valueOf((char)i), cd.size());
         }
         dData = data;
     }
@@ -41,11 +46,14 @@ public class LZW {
     private String decompressBytes() {
         ArrayByteInput abi = new ArrayByteInput(dData);
         BitInput bi = new DefaultBitInput(abi);
-        ArrayList<Integer> data = new ArrayList<>();
+
+        String totalDecompressed = "";
+        String sequence = "";
         try {
-            int maxBits = bi.readInt(true, 4);
+            int maxBits = bi.readInt(true, 32);
+            int ddIndex = 256;
             while (true) {
-                boolean dic = bi.readBoolean();
+                boolean dic = true;
                 boolean maxBit = bi.readBoolean();
                 int val = 0;
                 if (maxBit) {
@@ -53,36 +61,37 @@ public class LZW {
                 } else {
                     val = bi.readInt(true, 7);
                 }
-                if (dic) {
-                    data.add(1);
-                } else {
-                    data.add(0);
+
+                if (val < 256) {
+                    dic = false;
                 }
-                data.add(val);
+
+                try {
+                    if (!dic) {
+                        sequence += String.valueOf((char)val);
+                    } else {
+                        sequence += dd[val];
+                    }
+                } catch (IndexOutOfBoundsException e) {
+                    e.printStackTrace();
+                }
+
+                if (!cd.containsKey(sequence)) {
+//                    if (ddIndex < 4096) {
+                        if (ddIndex == dd.length) {
+                            String[] newArray = new String[dd.length + 1024];
+                            System.arraycopy(dd, 0, newArray, 0, dd.length);
+                            dd = newArray;
+                        }
+                        dd[ddIndex] = sequence;
+                        ddIndex++;
+                        cd.put(sequence, 1);
+//                    }
+                    totalDecompressed += sequence;
+                    sequence = "";
+                }
             }
         } catch (Exception ignored) { }
-
-        String totalDecompressed = "";
-        String sequence = "";
-        for(int i = 0; i < data.size(); i+=2) {
-            int a = data.get(i);
-            int b = data.get(i+1);
-            try {
-                if (a == 0) {
-                    sequence += String.valueOf((char)b);
-                } else {
-                    sequence += dd.get(b + 256);
-                }
-            } catch (IndexOutOfBoundsException e) {
-                e.printStackTrace();
-            }
-
-            if (!dd.contains(sequence)) {
-                dd.add(sequence);
-                totalDecompressed += sequence;
-                sequence = "";
-            }
-        }
         totalDecompressed += sequence;
         return totalDecompressed;
     }
@@ -97,7 +106,6 @@ public class LZW {
             if (cd.containsKey(ch)) {
                 ArrayList<Integer> compressed = new ArrayList<>();
                 Integer value = cd.get(ch);
-                compressed.add(0);
                 compressed.add(value);
                 if (value > maxNumber) maxNumber = value;
                 String compressedKey = ch;
@@ -111,14 +119,12 @@ public class LZW {
                     compressedKey += ch;
                     int po = (int)ch.charAt(0);
                     if (po > maxNumber) maxNumber = po;
-                    compressed.add(0);
                     compressed.add(po);
                     if (cd.containsKey(compressedKey)) {
                         compressed = new ArrayList<>();
                         value = cd.get(compressedKey);
                         if (value > maxNumber) maxNumber = value;
-                        compressed.add(1);
-                        compressed.add(value - 256);
+                        compressed.add(value);
                     } else {
                         int n = cd.size();
                         cd.put(compressedKey, n);
@@ -130,7 +136,6 @@ public class LZW {
                 cd.put(ch, cd.size());
                 int po = (int)ch.charAt(0);
                 if (po > maxNumber) maxNumber = po;
-                totalCompressed.add(0);
                 totalCompressed.add(po);
             }
         }
@@ -141,16 +146,10 @@ public class LZW {
         int maxBits = getNumBits(maxNumber);
 
         try {
-            bo.writeInt(true,4, maxBits);
+            bo.writeInt(true,32, maxBits);
             for(int i = 0; i < totalCompressed.size(); i++) {
-                int dic = totalCompressed.get(i);
-                int num = totalCompressed.get(i + 1);
+                int num = totalCompressed.get(i);
                 boolean maxBit = num > 127;
-                if (dic == 0) {
-                    bo.writeBoolean(false);
-                } else {
-                    bo.writeBoolean(true);
-                }
                 if (maxBit) {
                     bo.writeBoolean(true);
                     bo.writeInt(true, maxBits, num);
@@ -158,8 +157,6 @@ public class LZW {
                     bo.writeBoolean(false);
                     bo.writeInt(true, 7, num);
                 }
-
-                i++;
             }
             bo.align(1);
         } catch (IOException e) {
@@ -177,6 +174,22 @@ public class LZW {
     }
 
     public static int getNumBits(int b) {
+        if (b > 2147483647) return 32;
+        if (b > 1073741823) return 31;
+        if (b > 536870911) return 30;
+        if (b > 268435455) return 29;
+        if (b > 134217727) return 28;
+        if (b > 67108863) return 27;
+        if (b > 33554431) return 26;
+        if (b > 16777215) return 25;
+        if (b > 8388607) return 24;
+        if (b > 4194303) return 23;
+        if (b > 2097151) return 22;
+        if (b > 1048575) return 21;
+        if (b > 524287) return 20;
+        if (b > 262143) return 19;
+        if (b > 131071) return 18;
+        if (b > 65535) return 17;
         if (b > 32767) return 16;
         if (b > 16383) return 15;
         if (b > 8191) return 14;
