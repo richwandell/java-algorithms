@@ -7,19 +7,16 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.stream.Stream;
 
+import static com.wandell.compression.Utils.getNumBits;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class LZWTest {
     @Test
     void testCompression() {
         try {
-            StringBuilder contentBuilder = new StringBuilder();
-
-            try (Stream<String> stream = Files.lines(Paths.get("bible.txt"))) {
-                stream.forEach(s -> contentBuilder.append(s).append("\n"));
-            }
-
-            byte[] compressed = LZW.compress(contentBuilder.toString());
+            File fileIn = new File("bible.txt");
+            byte[] inputBytes = Files.readAllBytes(fileIn.toPath());
+            byte[] compressed = LZW.compress(inputBytes);
             File file = new File("test.txt");
             FileOutputStream fos = new FileOutputStream(file);
             fos.write(compressed);
