@@ -6,20 +6,63 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
 
-import static com.wandell.compression.LZWTest.BIBLE_RESOURCE;
-import static com.wandell.compression.LZWTest.IPSUM_RESOURCE;
+import static com.wandell.compression.LZWTest.*;
 import static com.wandell.compression.Utils.getResourceFile;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.fail;
 
 public class HuffmanTest {
     @Test
-    void testCompress() {
+    void testIpsum() {
         try {
-            var resource = IPSUM_RESOURCE;
+            var file = getResourceFile(IPSUM_RESOURCE);
+            var inputBytes = Files.readAllBytes(file.toPath());
+            var compressed = Huffman.compress(inputBytes);
+            var decompressed = Huffman.decompress(compressed);
+
+            assertArrayEquals(inputBytes, decompressed);
+
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    void testPDF() {
+        try {
+            var file = getResourceFile(PDF_RESOURCE);
+            var inputBytes = Files.readAllBytes(file.toPath());
+            var compressed = Huffman.compress(inputBytes);
+            var decompressed = Huffman.decompress(compressed);
+
+            assertArrayEquals(inputBytes, decompressed);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    void testBible() {
+        try {
+            var file = getResourceFile(BIBLE_RESOURCE);
+            var inputBytes = Files.readAllBytes(file.toPath());
+            var compressed = Huffman.compress(inputBytes);
+            var decompressed = Huffman.decompress(compressed);
+
+            assertArrayEquals(inputBytes, decompressed);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    void compress() {
+        try {
+            var resource = BIBLE_RESOURCE;
             var file = getResourceFile(resource);
             var inputBytes = Files.readAllBytes(file.toPath());
             var compressed = Huffman.compress(inputBytes);
 
-            file = new File(resource + ".wc");
+            file = new File(resource + ".wch");
             Files.write(file.toPath(), compressed);
 
             System.out.println("Input: " + inputBytes.length + " Output: " + compressed.length);
@@ -28,11 +71,11 @@ public class HuffmanTest {
         }
     }
 
-    @Test
-    void testDecompress() {
+
+    void decompress() {
         try {
-            var resource = IPSUM_RESOURCE;
-            var file = new File(resource + ".wc");
+            var resource = BIBLE_RESOURCE;
+            var file = new File(resource + ".wch");
             byte[] inputBytes = Files.readAllBytes(file.toPath());
             byte[] decompressed = Huffman.decompress(inputBytes);
 

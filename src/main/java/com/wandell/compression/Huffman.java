@@ -114,7 +114,7 @@ public class Huffman {
     private static class Compressor {
         private byte[] bData;
         private PriorityQueue<ByteNode> byteQueue;
-        private LinkedHashMap<Byte, Integer> frequency;
+        private LinkedHashMap<Integer, Integer> frequency;
 
         private Compressor(byte[] data) {
             bData = data;
@@ -125,49 +125,55 @@ public class Huffman {
         private byte[] compressBytes() {
             for (int i = 0; i < bData.length; i++) {
                 Byte b = bData[i];
-                if (frequency.containsKey(b)) {
-                    int currentVal = frequency.get(b);
-                    frequency.put(b, currentVal + 1);
+                if (frequency.containsKey(b & 0xFF)) {
+                    int currentVal = frequency.get(b & 0xFF);
+                    frequency.put(b & 0xFF, currentVal + 1);
                 } else {
-                    frequency.put(b, 1);
+                    frequency.put(b & 0xFF, 1);
                 }
             }
 
-            for(Map.Entry<Byte, Integer> byteNode : frequency.entrySet()) {
-                byteQueue.add(new ByteNode(byteNode.getKey(), byteNode.getValue()));
+            ArrayList<ByteNode> byteQueue = new ArrayList<>();
+
+            for(Map.Entry<Integer, Integer> byteNode : frequency.entrySet()) {
+                byteQueue.add(new ByteNode((byte) ((int)byteNode.getKey()), byteNode.getValue()));
             }
+
+            Comparator<ByteNode> comparator = Comparator.comparing(node -> node.frequency);
+            comparator = comparator.thenComparing(node -> node.value, Comparator.reverseOrder());
+            byteQueue.sort(comparator);
 
             ByteNode root = new ByteNode((byte)0);
             while(!byteQueue.isEmpty()) {
-                ByteNode byteNode1 = byteQueue.poll();
-                ByteNode byteNode2 = byteQueue.poll();
-                if (byteNode2 == null) {
+                ByteNode byteNode1 = byteQueue.remove(0);
+                if (byteQueue.size() == 0) {
                     root = byteNode1;
                     root.isRoot = true;
                     break;
                 }
+                ByteNode byteNode2 = byteQueue.remove(0);
                 ByteNode newNode = new ByteNode(byteNode1, byteNode2);
                 byteQueue.add(newNode);
+                byteQueue.sort(comparator);
             }
 
             ArrayByteOutput abo = new ArrayByteOutput();
             BitOutput bo = new DefaultBitOutput(abo);
             Collection<ByteNode> values = ByteNode.byteNodeMap.values();
-            int keyLength = 0;
             int valLength = 0;
+            int frequencyBits = 0;
             for(ByteNode entry : values) {
-                int index = entry.getIndex();
-                int numIndexBits = getNumBits(index);
-
                 int value = entry.getValue();
                 int numValueBits = getNumBits(value);
 
-                if (numIndexBits > keyLength) {
-                    keyLength = numIndexBits;
-                }
-
                 if (numValueBits > valLength){
                     valLength = numValueBits;
+                }
+
+                int frequency = entry.getFrequency();
+                int currentFrequencyBits = getNumBits(frequency);
+                if (currentFrequencyBits > frequencyBits) {
+                    frequencyBits = currentFrequencyBits;
                 }
             }
 
@@ -175,20 +181,17 @@ public class Huffman {
                 bo.writeInt(true, 32, valLength);
                 bo.writeInt(true, 32, values.size());
                 bo.writeInt(true, 32, bData.length);
+                bo.writeInt(true, 32, frequencyBits);
 
                 for(ByteNode entry : values) {
                     bo.writeInt(true, valLength, entry.getValue());
-                    bo.writeInt(true, 32, entry.getFrequency());
+                    bo.writeInt(true, frequencyBits, entry.getFrequency());
                 }
 
                 for (int i = 0; i < bData.length; i++) {
                     ByteNode byteNodeKey = new ByteNode(bData[i]);
                     ByteNode byteNode = ByteNode.byteNodeMap.get(byteNodeKey);
-                    int intIndex = byteNode.getIndex();
                     String stringIndex = byteNode.getStringIndex();
-                    StringBuilder input1 = new StringBuilder();
-                    input1.append(stringIndex);
-                    stringIndex = input1.reverse().toString();
                     try {
                         for(int j = 0; j < stringIndex.length(); j++) {
                             char ch = stringIndex.charAt(j);
@@ -215,45 +218,13 @@ public class Huffman {
 
     private static class Decompressor {
         private final byte[] bData;
-        private PriorityQueue<ByteNode> byteQueue;
-        private LinkedHashMap<Byte, Integer> frequency;
+        private ArrayList<ByteNode> byteQueue;
+        private LinkedHashMap<Integer, Integer> frequency;
 
         private Decompressor(byte[] data) {
             bData = data;
-            byteQueue = new PriorityQueue<>();
+            byteQueue = new ArrayList<>();
             frequency = new LinkedHashMap<>();
-        }
-
-        private ByteNode createByteNodeTree(HashMap<Integer, Integer> byteMap, int keyLength) {
-            ByteNode root = new ByteNode((byte)(int)byteMap.get(0));
-
-            Integer[] keys = byteMap.keySet().toArray(new Integer[0]);
-            Arrays.sort(keys);
-
-            ByteNode current = root;
-
-            for(Integer i : keys) {
-                var tmp = byteMap.get(i);
-
-            }
-
-//            ByteNode current = root;
-//            for(var entry : byteMap.entrySet()) {
-//                var key = entry.getKey();
-//                var val = entry.getValue();
-//
-//                int loopNum = 0;
-//                while (true) {
-//                    int nextBit = key >> loopNum & 0xFFFFFF;
-//                    if (nextBit == 0) {
-//                        current = current.getLeft();
-//                    } else {
-//                        current = current.getRight();
-//                    }
-//                    loopNum++;
-//                }
-//            }
-            return root;
         }
 
         private byte[] decompressBytes() {
@@ -265,44 +236,43 @@ public class Huffman {
                 int valLength = bi.readInt(true, 32);
                 int numValues = bi.readInt(true, 32);
                 int numNums = bi.readInt(true, 32);
+                int frequencyBits = bi.readInt(true, 32);
                 for(int i = 0; i < numValues; i++) {
                     int val = bi.readInt(true, valLength);
-                    int f = bi.readInt(true, 32);
-
-                    frequency.put((byte)val, f);
+                    int f = bi.readInt(true, frequencyBits);
+                    frequency.put(val, f);
                 }
 
-                for(Map.Entry<Byte, Integer> byteNode : frequency.entrySet()) {
-                    byteQueue.add(new ByteNode(byteNode.getKey(), byteNode.getValue()));
+                for(Map.Entry<Integer, Integer> byteNode : frequency.entrySet()) {
+                    byteQueue.add(new ByteNode((byte) (int)byteNode.getKey(), byteNode.getValue()));
                 }
+
+                Comparator<ByteNode> comparator = Comparator.comparing(node -> node.frequency);
+                comparator = comparator.thenComparing(node -> node.value, Comparator.reverseOrder());
+                byteQueue.sort(comparator);
 
                 ByteNode root = new ByteNode((byte)0);
                 while(!byteQueue.isEmpty()) {
-                    ByteNode byteNode1 = byteQueue.poll();
-                    ByteNode byteNode2 = byteQueue.poll();
-                    if (byteNode2 == null) {
+                    ByteNode byteNode1 = byteQueue.remove(0);
+                    if (byteQueue.size() == 0) {
                         root = byteNode1;
                         root.isRoot = true;
                         break;
                     }
+                    ByteNode byteNode2 = byteQueue.remove(0);
                     ByteNode newNode = new ByteNode(byteNode1, byteNode2);
                     byteQueue.add(newNode);
+                    byteQueue.sort(comparator);
                 }
 
-
                 int loopNum = 0;
-
                 while (true) {
                     if (loopNum == numNums) break;
-
-                    int currentValue = 0;
                     int mappedByte = 0;
                     ByteNode current = root;
                     while(true) {
                         if (current.isLeaf()) {
-                            int value = current.getValue();
-                            System.out.println(value);
-                            mappedByte = value;
+                            mappedByte = current.getValue();
                             break;
                         }
                         boolean currentByte = bi.readBoolean();
@@ -312,8 +282,6 @@ public class Huffman {
                             current = current.right;
                         }
                     }
-
-
                     decompressed.add((byte)mappedByte);
                     loopNum++;
                 }

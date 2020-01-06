@@ -60,7 +60,7 @@ public class LZWTest {
         }
     }
 
-    @Test
+
     void compress() {
         try {
             var resource = BIBLE_RESOURCE;
@@ -77,7 +77,7 @@ public class LZWTest {
         }
     }
 
-    @Test
+
     void decompress(){
         try {
             var resource = PDF_RESOURCE;
