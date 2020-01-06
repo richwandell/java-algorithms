@@ -3,24 +3,26 @@ package com.wandell.compression;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.stream.Stream;
+
+import static com.wandell.compression.LZWTest.BIBLE_RESOURCE;
+import static com.wandell.compression.LZWTest.IPSUM_RESOURCE;
+import static com.wandell.compression.Utils.getResourceFile;
 
 public class HuffmanTest {
     @Test
     void testCompress() {
         try {
-            File fileIn = new File("bible.txt");
-            byte[] inputBytes = Files.readAllBytes(fileIn.toPath());
-            byte[] compressed = Huffman.compress(inputBytes);
+            var resource = IPSUM_RESOURCE;
+            var file = getResourceFile(resource);
+            var inputBytes = Files.readAllBytes(file.toPath());
+            var compressed = Huffman.compress(inputBytes);
 
-            File file = new File("huffman_out.txt");
-            FileOutputStream fos = new FileOutputStream(file);
-            fos.write(compressed);
-            fos.close();
+            file = new File(resource + ".wc");
+            Files.write(file.toPath(), compressed);
+
+            System.out.println("Input: " + inputBytes.length + " Output: " + compressed.length);
         }catch(Exception e) {
             e.printStackTrace();
         }
@@ -29,14 +31,14 @@ public class HuffmanTest {
     @Test
     void testDecompress() {
         try {
-            File fileIn = new File("huffman_out.txt");
-            byte[] inputBytes = Files.readAllBytes(fileIn.toPath());
-            byte[] compressed = Huffman.decompress(inputBytes);
+            var resource = IPSUM_RESOURCE;
+            var file = new File(resource + ".wc");
+            byte[] inputBytes = Files.readAllBytes(file.toPath());
+            byte[] decompressed = Huffman.decompress(inputBytes);
 
-            File file = new File("huffman_out.txt");
-            FileOutputStream fos = new FileOutputStream(file);
-            fos.write(compressed);
-            fos.close();
+            file = new File(resource);
+            Files.write(file.toPath(), decompressed);
+
         }catch(Exception e) {
             e.printStackTrace();
         }

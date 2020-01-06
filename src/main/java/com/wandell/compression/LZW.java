@@ -4,7 +4,6 @@ package com.wandell.compression;
 import com.github.jinahya.bit.io.*;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -14,20 +13,12 @@ import static com.wandell.compression.Utils.intToByteArray;
 
 public class LZW {
 
+    private static HashMap<ByteArray, Integer> lastBd;
+
     private static class Compressor {
 
-        private HashMap<String, Integer> sd;
-        private String sData;
         private HashMap<ByteArray, Integer> bd;
         private byte[] bData;
-
-        private Compressor(String data) {
-            sd = new LinkedHashMap<>();
-            for(int i = 0; i < 256; i++) {
-                sd.put(String.valueOf((char)i), sd.size());
-            }
-            sData = data;
-        }
 
         private Compressor(byte[] data) {
             bd = new LinkedHashMap<>();
@@ -48,10 +39,10 @@ public class LZW {
             for (int i = 0; i < bData.length; i++) {
                 Byte by = bData[i];
 
-                ByteArray ba = new ByteArray(intToByteArray(by));
+                ByteArray ba = new ByteArray(intToByteArray(by & 0xFF));
                 if (bd.containsKey(ba)) {
                     ArrayList<Integer> compressed = new ArrayList<>();
-                    Integer value = (int)by;
+                    Integer value = (int)by & 0xFF;
                     compressed.add(value);
                     if (value > maxNumber) maxNumber = value;
                     while (true) {
@@ -122,109 +113,38 @@ public class LZW {
 
             return returnBytes;
         }
-
-        private byte[] compressString() {
-            ArrayList<Integer> totalCompressed = new ArrayList<>();
-
-            int maxNumber = 0;
-            for(int i = 0; i < sData.length(); i++) {
-                String ch = String.valueOf(sData.charAt(i));
-
-                if (sd.containsKey(ch)) {
-                    ArrayList<Integer> compressed = new ArrayList<>();
-                    Integer value = sd.get(ch);
-                    compressed.add(value);
-                    if (value > maxNumber) maxNumber = value;
-                    String compressedKey = ch;
-                    while(true) {
-                        i++;
-                        if (i == sData.length()) {
-                            totalCompressed.addAll(compressed);
-                            break;
-                        }
-                        ch = String.valueOf(sData.charAt(i));
-                        compressedKey += ch;
-                        int po = (int)ch.charAt(0);
-                        if (po > maxNumber) maxNumber = po;
-                        compressed.add(po);
-                        if (sd.containsKey(compressedKey)) {
-                            compressed = new ArrayList<>();
-                            value = sd.get(compressedKey);
-                            if (value > maxNumber) maxNumber = value;
-                            compressed.add(value);
-                        } else {
-                            int n = sd.size();
-                            sd.put(compressedKey, n);
-                            totalCompressed.addAll(compressed);
-                            break;
-                        }
-                    }
-                } else {
-                    sd.put(ch, sd.size());
-                    int po = (int)ch.charAt(0);
-                    if (po > maxNumber) maxNumber = po;
-                    totalCompressed.add(po);
-                }
-            }
-
-            ArrayByteOutput abo = new ArrayByteOutput();
-            BitOutput bo = new DefaultBitOutput(abo);
-
-            int maxBits = getNumBits(maxNumber);
-
-            try {
-                bo.writeInt(true,32, maxBits);
-                bo.writeInt(true, 32, totalCompressed.size());
-                for(int i = 0; i < totalCompressed.size(); i++) {
-                    int num = totalCompressed.get(i);
-                    boolean maxBit = num > 127;
-                    if (maxBit) {
-                        bo.writeBoolean(true);
-                        bo.writeInt(true, maxBits, num);
-                    } else {
-                        bo.writeBoolean(false);
-                        bo.writeInt(true, 7, num);
-                    }
-                }
-                bo.align(1);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            byte[] returnBytes = abo.getTheTarget();
-
-            return returnBytes;
-        }
     }
 
     private static class Decompressor {
 
-        private String[] dd;
-        private HashMap<String, Integer> cd;
-        private byte[] dData;
+        private byte[] bData;
+
+        private HashMap<ByteArray, Integer> dbAtoI;
+        private HashMap<Integer, ByteArray> dbItoA;
 
         private Decompressor(byte[] data) {
-            dd = new String[256];
+            dbAtoI = new LinkedHashMap<>();
+            dbItoA = new LinkedHashMap<>();
             for(int i = 0; i < 256; i++) {
-                dd[i] = String.valueOf((char)i);
+                var ba = ByteArray.of(i);
+                dbAtoI.put(ba, i);
+                dbItoA.put(i, ba);
             }
-            cd = new LinkedHashMap<>();
-            for(int i = 0; i < 256; i++) {
-                cd.put(String.valueOf((char)i), cd.size());
-            }
-            dData = data;
+            bData = data;
         }
 
-        private String decompressBytes() {
-            ArrayByteInput abi = new ArrayByteInput(dData);
+        private byte[] decompressBytes() {
+            ArrayByteInput abi = new ArrayByteInput(bData);
             BitInput bi = new DefaultBitInput(abi);
 
-            String totalDecompressed = "";
-            String sequence = "";
+            var totalDecompressed = new byte[0];
+            int totalIndex = 0;
+            var sequence = new ArrayList<Byte>();
+
             try {
                 int maxBits = bi.readInt(true, 32);
                 int numNums = bi.readInt(true, 32);
-                int ddIndex = 256;
+                totalDecompressed = new byte[numNums];
                 int currentNum = 0;
                 while (true) {
                     if (currentNum == numNums) break;
@@ -243,49 +163,56 @@ public class LZW {
 
                     try {
                         if (!dic) {
-                            if (val == 0) {
-                                sequence += "\0";
-                            } else {
-                                sequence += String.valueOf((char) val);
-                            }
+                            sequence.addAll(ByteArray.of(val));
                         } else {
-                            sequence += dd[val];
+                            var tmpValue = dbItoA.get(val);
+                            sequence.addAll(tmpValue);
                         }
                     } catch (IndexOutOfBoundsException e) {
                         e.printStackTrace();
                     }
 
-                    if (!cd.containsKey(sequence)) {
-                        if (ddIndex == dd.length) {
-                            String[] newArray = new String[dd.length + 1024];
-                            System.arraycopy(dd, 0, newArray, 0, dd.length);
-                            dd = newArray;
+                    var key = ByteArray.of(sequence);
+                    if (!dbAtoI.containsKey(key)) {
+                        dbAtoI.put(key, dbAtoI.size());
+                        dbItoA.put(dbItoA.size(), key);
+                        if (totalIndex + sequence.size() >= totalDecompressed.length) {
+                            byte[] tmpByte = new byte[totalDecompressed.length + 1000];
+                            System.arraycopy(totalDecompressed, 0, tmpByte, 0, totalDecompressed.length);
+                            totalDecompressed = tmpByte;
                         }
-                        dd[ddIndex] = sequence;
-                        ddIndex++;
-                        cd.put(sequence, 1);
-
-                        totalDecompressed += sequence;
-                        sequence = "";
+                        for(int j = 3; j < sequence.size(); j+=4) {
+                            totalDecompressed[totalIndex] = sequence.get(j);
+                            totalIndex++;
+                        }
+                        sequence = new ArrayList<Byte>();
                     }
                     currentNum++;
                 }
-            } catch (Exception ignored) { }
-            if (sequence.length() > 0) {
-                totalDecompressed += sequence;
+            } catch (Exception ignored) {
+                ignored.printStackTrace();
             }
-            return totalDecompressed;
+
+            if (sequence.size() > 0) {
+                if (totalIndex + sequence.size() >= totalDecompressed.length) {
+                    byte[] tmpByte = new byte[totalDecompressed.length + 500];
+                    System.arraycopy(totalDecompressed, 0, tmpByte, 0, totalDecompressed.length);
+                    totalDecompressed = tmpByte;
+                }
+                for(int j = 3; j < sequence.size(); j+=4) {
+                    totalDecompressed[totalIndex] = sequence.get(j);
+                    totalIndex++;
+                }
+            }
+            byte[] returnByte = new byte[totalIndex];
+            System.arraycopy(totalDecompressed, 0, returnByte, 0, totalIndex);
+            return returnByte;
         }
     }
 
-    public static String decompress(byte[] data) {
+    public static byte[] decompress(byte[] data) {
         Decompressor decompressor = new Decompressor(data);
         return decompressor.decompressBytes();
-    }
-
-    public static byte[] compress(String data){
-        Compressor compressor = new Compressor(data);
-        return compressor.compressString();
     }
 
     public static byte[] compress(byte[] data) {

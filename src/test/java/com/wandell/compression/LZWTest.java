@@ -8,38 +8,89 @@ import java.nio.file.Paths;
 import java.util.stream.Stream;
 
 import static com.wandell.compression.Utils.getNumBits;
+import static com.wandell.compression.Utils.getResourceFile;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class LZWTest {
+
+    static final String IPSUM_RESOURCE = "pirateipsum.txt";
+    static final String BIBLE_RESOURCE = "bible.txt";
+    static final String PDF_RESOURCE = "cambridge_math_reading_list.pdf";
+
     @Test
-    void testCompression() {
+    void testIpsum() {
         try {
-            File fileIn = new File("bible.txt");
-            byte[] inputBytes = Files.readAllBytes(fileIn.toPath());
-            byte[] compressed = LZW.compress(inputBytes);
-            File file = new File("test.txt");
-            FileOutputStream fos = new FileOutputStream(file);
-            fos.write(compressed);
-            fos.close();
-        } catch (IOException e) {
-            e.printStackTrace();
+            var file = getResourceFile(IPSUM_RESOURCE);
+            var inputBytes = Files.readAllBytes(file.toPath());
+            var compressed = LZW.compress(inputBytes);
+            var decompressed = LZW.decompress(compressed);
+
+            assertArrayEquals(inputBytes, decompressed);
+
+        } catch (Exception e) {
+            fail();
         }
     }
 
     @Test
-    void testDecompression(){
+    void testPDF() {
         try {
-            File file = new File("test.txt");
-            byte[] fileContent = Files.readAllBytes(file.toPath());
-            String decompress = LZW.decompress(fileContent);
+            var file = getResourceFile(PDF_RESOURCE);
+            var inputBytes = Files.readAllBytes(file.toPath());
+            var compressed = LZW.compress(inputBytes);
+            var decompressed = LZW.decompress(compressed);
 
-            file = new File("test.out.txt");
-            Files.write(file.toPath(), decompress.getBytes());
+            assertArrayEquals(inputBytes, decompressed);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    void testBible() {
+        try {
+            var file = getResourceFile(BIBLE_RESOURCE);
+            var inputBytes = Files.readAllBytes(file.toPath());
+            var compressed = LZW.compress(inputBytes);
+            var decompressed = LZW.decompress(compressed);
+
+            assertArrayEquals(inputBytes, decompressed);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    void compress() {
+        try {
+            var resource = BIBLE_RESOURCE;
+            var file = getResourceFile(resource);
+            var inputBytes = Files.readAllBytes(file.toPath());
+            var compressed = LZW.compress(inputBytes);
+
+            file = new File(resource + ".wc");
+            Files.write(file.toPath(), compressed);
+
+            System.out.println("Input: " + inputBytes.length + " Output: " + compressed.length);
+        } catch (Exception e) {
+            fail();
+        }
+    }
+
+    @Test
+    void decompress(){
+        try {
+            var resource = PDF_RESOURCE;
+            File file = new File(resource + ".wc");
+            byte[] fileContent = Files.readAllBytes(file.toPath());
+            byte[] decompress = LZW.decompress(fileContent);
+
+            file = new File(resource);
+            Files.write(file.toPath(), decompress);
 
         } catch (IOException e) {
-            e.printStackTrace();
+            fail();
         }
-
     }
 }
 
